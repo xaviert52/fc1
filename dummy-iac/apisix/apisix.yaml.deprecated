@@ -1,0 +1,47 @@
+routes:
+
+  # ============================================================================
+  # HEALTH — Gateway (respuesta directa, sin proxy)
+  # ============================================================================
+  - id: gateway-health
+    uris:
+      - /health
+    priority: 100
+    plugins:
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - |
+            return 200, { message = "ok" }
+
+  # ============================================================================
+  # API — Backend principal
+  # ============================================================================
+  - id: backend-api
+    uris:
+      - /api/*
+    priority: 50
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/api/(.*)", "/$1"]
+    upstream:
+      type: roundrobin
+      nodes:
+        "backend-service:8080": 1
+
+  # ============================================================================
+  # COMPANY — Multi-tenant
+  # ============================================================================
+  - id: backend-company
+    uris:
+      - /company/*
+    priority: 60
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/company/[^/]+/(.*)", "/$1"]
+    upstream:
+      type: roundrobin
+      nodes:
+        "backend-service:8080": 1
+
+end: true

@@ -1,0 +1,20 @@
+deployment:
+  role: traditional
+  role_traditional:
+    config_provider: etcd
+  etcd:
+    host:
+      - http://172.26.3.132:2379  # <-- NUEVA IP PRIVADA
+    prefix: /apisix
+  admin:
+    admin_key_required: true
+    admin_key:
+      - name: admin
+        key: 459839f290c8b082990871dfb8745601
+        role: admin
+
+apisix:
+  node_listen:
+    - ip: 0.0.0.0
+      port: 9080
+  enable_ipv6: false

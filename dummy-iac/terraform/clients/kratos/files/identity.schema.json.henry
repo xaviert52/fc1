@@ -1,0 +1,129 @@
+{
+  "$id": "https://schemas.ory.sh/presets/kratos/quickstart/email-password/identity.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Person",
+  "type": "object",
+  "properties": {
+    "traits": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "title": "E-Mail",
+          "minLength": 3,
+          "ory.sh/kratos": {
+            "credentials": {
+              "password": {
+                "identifier": true
+              }
+            }
+          }
+        },
+        "name": {
+          "type": "object",
+          "properties": {
+            "first": {
+              "type": "string",
+              "title": "Nombres"
+            },
+            "last": {
+              "type": "string",
+              "title": "Apellidos"
+            }
+          }
+        },
+        "dni": {
+          "type": "string",
+          "title": "DNI",
+          "description": "Cédula de identidad, pasaporte, o numero de identificacion gubernamental"
+        },
+        "dactilar": {
+          "type": "string",
+          "title": "Código Dactilar",
+          "description": "Código dactilar que se encuentra en la parte posterior o frontal de la cedula de identidad"
+        },
+        "rostro": {
+          "type": "string",
+          "title": "Datos Biometricos (Rostro)",
+          "description": "Hash o referencia a datos biometricos"
+        },
+        "companies": {
+          "type": "array",
+          "title": "Companies",
+          "items": {
+            "type": "object",
+            "properties": {
+              "company_id": {
+                "type": "string"
+              },
+              "company_name": {
+                "type": "string"
+              },
+              "employee_id": {
+                "type": "string"
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "permissions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "metadata": {
+                "type": "object"
+              },
+              "is_active": {
+                "type": "boolean"
+              },
+              "default_company": {
+                "type": "boolean"
+              },
+              "last_access": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "active_context": {
+          "type": "object",
+          "title": "Active Context",
+          "properties": {
+            "company_id": {
+              "type": "string"
+            },
+            "switched_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "ip_address": {
+              "type": "string"
+            },
+            "user_agent": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": [
+        "email",
+        "dni",
+        "dactilar"
+      ],
+      "additionalProperties": false
+    },
+    "metadata_admin": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

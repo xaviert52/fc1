@@ -1,0 +1,12 @@
+{
+  "name": "permission-engine",
+  "version": "1.0.0",
+  "description": "Ory Keto Namespace Definitions",
+  "main": "namespace.ts",
+  "dependencies": {
+    "@ory/keto-namespace-types": "^0.13.0-alpha.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.0.0"
+  }
+}

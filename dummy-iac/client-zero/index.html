@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Cache-Control"
+      content="no-cache, no-store, must-revalidate"
+    />
+    <title>PRY Zero Trust</title>
+    <style>
+      :root {
+        --bg: #1e1e1e;
+        --panel: #252526;
+        --border: #454545;
+        --text: #cccccc;
+        --accent: #007acc;
+        --accent-hover: #0062a3;
+        --success: #89d185;
+        --err: #f48771;
+        --warn: #cca700;
+        --disabled: #3a3a3a;
+      }
+      body {
+        font-family: "Consolas", "Monaco", monospace;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+      .window {
+        width: 100%;
+        max-width: 550px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        min-height: 480px;
+      }
+      .header {
+        background: #333;
+        padding: 8px 15px;
+        font-size: 0.75rem;
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--border);
+        user-select: none;
+      }
+      .content {
+        padding: 25px;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+      }
+      h1 {
+        margin: 0 0 20px 0;
+        font-size: 1rem;
+        text-transform: uppercase;
+        color: #fff;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 10px;
+      }
+      h3 {
+        font-size: 0.85rem;
+        color: #fff;
+        margin: 0 0 15px 0;
+        text-transform: uppercase;
+      }
+      .field {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        font-size: 0.75rem;
+        color: #9cdcfe;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input,
+      select {
+        width: 100%;
+        padding: 12px;
+        background: #3c3c3c;
+        border: 1px solid var(--border);
+        color: #fff;
+        box-sizing: border-box;
+        font-family: inherit;
+        transition: border 0.2s;
+      }
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      input[readonly],
+      select[readonly] {
+        color: #fff;
+        border-color: transparent;
+        background: #2d2d2d;
+        cursor: default;
+        font-weight: bold;
+      }
+      button {
+        width: 100%;
+        padding: 12px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        font-weight: bold;
+        cursor: pointer;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+        margin-top: 10px;
+      }
+      button:hover {
+        background: var(--accent-hover);
+      }
+      button:disabled {
+        background: var(--disabled);
+        color: #666;
+        cursor: wait;
+        border: 1px solid var(--border);
+      }
+      button.secondary {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: #aaa;
+      }
+      button.secondary:hover {
+        border-color: #fff;
+        color: #fff;
+      }
+      button.danger {
+        background: rgba(244, 135, 113, 0.1);
+        border: 1px solid var(--err);
+        color: var(--err);
+      }
+      button.danger:hover {
+        background: rgba(244, 135, 113, 0.2);
+      }
+      button.action-btn {
+        background: var(--warn);
+        color: #000;
+      }
+      button.action-btn:hover {
+        background: #e6bd00;
+      }
+      #kratos-ui {
+        display: none;
+        margin-top: 10px;
+        animation: fadeIn 0.3s ease;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .kratos-links {
+        text-align: center;
+        margin-top: 20px;
+        font-size: 0.75rem;
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+        padding-top: 15px;
+        border-top: 1px solid var(--border);
+      }
+      .kratos-links a {
+        color: #666;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .kratos-links a:hover {
+        color: var(--accent);
+        text-decoration: underline;
+      }
+      .msg-box {
+        padding: 12px;
+        margin-bottom: 20px;
+        font-size: 0.8rem;
+        border-left: 4px solid;
+        display: none;
+        background: rgba(0, 0, 0, 0.2);
+        word-break: break-all;
+      }
+      .msg-err {
+        border-color: var(--err);
+        color: var(--err);
+      }
+      .msg-info {
+        border-color: var(--accent);
+        color: #9cdcfe;
+      }
+      .msg-success {
+        border-color: var(--success);
+        color: var(--success);
+      }
+      #debug-console {
+        display: none;
+        margin-top: auto;
+        border-top: 1px dashed #555;
+        padding: 10px;
+        font-size: 0.7rem;
+        color: #666;
+        max-height: 100px;
+        overflow-y: auto;
+        background: #111;
+        white-space: pre-wrap;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .invite-panel {
+        margin-top: 25px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="window">
+      <div class="header">
+        <span>SYS v34.0 (B2B SaaS)</span>
+        <span id="clock" style="color: var(--success)">--:--:--</span>
+      </div>
+
+      <div class="content">
+        <div
+          id="view-loading"
+          class="hidden"
+          style="text-align: center; padding-top: 50px"
+        >
+          <p style="color: var(--accent); font-size: 1.5rem">⟳</p>
+          <div id="loading-msg" style="font-size: 0.9rem; color: #fff">
+            Conectando...
+          </div>
+        </div>
+
+        <div id="view-dashboard">
+          <h1>Zero Trust Console</h1>
+          <div id="dash-msg" class="msg-box"></div>
+
+          <div class="field">
+            <label>IDENTIDAD ACTIVA</label>
+            <input type="text" id="user-sub" value="..." readonly />
+          </div>
+
+          <div id="user-actions" class="hidden">
+            <div class="field">
+              <label>ZONA SEGURA (API GATEWAY)</label>
+              <button id="btn-secure" onclick="testSecureApi()" disabled>
+                🔒 ACCESO DENEGADO
+              </button>
+              <div
+                id="api-result"
+                style="
+                  margin-top: 10px;
+                  font-size: 0.8rem;
+                  min-height: 20px;
+                  text-align: center;
+                "
+              ></div>
+            </div>
+
+            <div id="dynamic-invite-panel" class="invite-panel">
+              <div style="text-align: center; color: #666; padding: 10px">
+                Consultando políticas de acceso...
+              </div>
+            </div>
+
+            <button
+              class="secondary"
+              style="margin-top: 25px"
+              onclick="window.location.href = '/protected-zone/settings'"
+            >
+              ⚙️ EDITAR PERFIL
+            </button>
+            <button class="danger" onclick="hardLogout()">CERRAR SESIÓN</button>
+          </div>
+
+          <div id="main-actions">
+            <button onclick="startLogin()" id="btn-login">
+              🔐 INICIAR SESIÓN (SSO)
+            </button>
+            <div style="text-align: center; margin-top: 10px">
+              <a
+                onclick="hardLogout()"
+                style="
+                  font-size: 0.7rem;
+                  color: #444;
+                  cursor: pointer;
+                  text-decoration: underline;
+                "
+                >Forzar Reset (Emergencia)</a
+              >
+            </div>
+          </div>
+        </div>
+
+        <div id="view-kratos" class="hidden">
+          <h1 id="flow-title">AUTENTICACIÓN</h1>
+          <div id="kratos-msg" class="msg-box"></div>
+          <form id="kratos-form" onsubmit="submitKratos(event)">
+            <div style="text-align: center; color: #666; padding: 20px">
+              Cargando...
+            </div>
+          </form>
+          <div class="kratos-links">
+            <a onclick="window.location.href = '/protected-zone/login'"
+              >Login</a
+            >
+            <a onclick="window.location.href = '/protected-zone/registration'"
+              >Registro</a
+            >
+            <a onclick="window.location.href = '/protected-zone/recovery'"
+              >Recuperar</a
+            >
+            <a onclick="cancelFlow()">Volver</a>
+          </div>
+        </div>
+
+        <div style="text-align: right; margin-top: 10px">
+          <a
+            onclick="toggleLog()"
+            style="font-size: 0.7rem; color: #444; cursor: pointer"
+            >[LOGS]</a
+          >
+        </div>
+        <div id="debug-console">System ready.</div>
+      </div>
+    </div>
+
+    <script>
+      const CFG = {
+        base: "https://api.ztest.click/protected-zone/",
+        kratos: "https://api.ztest.click/kratos",
+        hydra: "https://api.ztest.click/oauth2",
+        hydraAdmin: "https://api.ztest.click/debug-admin",
+        clientId: "client-zero-spa",
+      };
+
+      const LABEL_MAP = {
+        password: "Contraseña",
+        password_identifier: "Correo Electrónico",
+        identifier: "Usuario / Correo",
+        "traits.email": "Correo Electrónico",
+        "traits.name.first": "Nombre",
+        "traits.name.last": "Apellido",
+        "traits.telefono": "Teléfono",
+        "traits.dni": "DNI / Cédula",
+        "traits.invite_token": "Código de Invitación",
+      };
+
+      const q = new URLSearchParams(window.location.search);
+      setInterval(() => {
+        document.getElementById("clock").innerText =
+          new Date().toLocaleTimeString();
+      }, 1000);
+
+      async function init() {
+        log("Inicializando v34.0 (B2B SaaS)...");
+
+        if (q.has("invite")) {
+          sessionStorage.setItem("pending_invite", q.get("invite"));
+          log("Token detectado en URL: " + q.get("invite"));
+        }
+
+        if (
+          window.location.pathname.includes("/consent") &&
+          q.has("consent_challenge")
+        ) {
+          await handleAutoConsent(q.get("consent_challenge"));
+          return;
+        }
+
+        const path = window.location.pathname;
+        const flows = ["login", "registration", "recovery", "settings"];
+        const flowType = flows.find((f) => path.includes(f));
+
+        if (flowType) {
+          if (q.has("flow")) loadKratosUI(flowType, q.get("flow"));
+          else initFlowRedirect(flowType);
+          return;
+        }
+
+        if (q.has("code")) {
+          await handleOidcCallback();
+          return;
+        }
+
+        const token = sessionStorage.getItem("at");
+        if (token) renderUser(token);
+        else renderAnon();
+      }
+
+      async function updateIdentity() {
+        try {
+          const res = await fetch(`${CFG.kratos}/sessions/whoami`, {
+            credentials: "include",
+          });
+          if (res.ok) {
+            const data = await res.json();
+
+            // 1. Mostrar el Nombre en lugar del UUID
+            let displayName = "Usuario";
+            if (data.identity?.traits?.name?.first) {
+              displayName = `${data.identity.traits.name.first} ${data.identity.traits.name.last || ""}`;
+            } else if (data.identity?.traits?.email) {
+              displayName = data.identity.traits.email;
+            }
+            document.getElementById("user-sub").value =
+              displayName.toUpperCase();
+            document.getElementById("user-sub").style.color = "var(--success)";
+
+            // 2. Validar con Keto si es Admin de la empresa matriz
+            const uuid = data.identity.id;
+            checkAdminStatus(uuid);
+          }
+        } catch (e) {
+          log("No se pudo obtener detalles de identidad");
+        }
+      }
+
+      async function checkAdminStatus(uuid) {
+        // Consultamos a la Read API de Keto a través de APISIX
+        const ketoUrl = `https://api.ztest.click/keto/relation-tuples/check?namespace=Company&object=empresa-pry-root&relation=admin&subject_id=${uuid}`;
+        try {
+          const res = await fetch(ketoUrl);
+          const data = await res.json();
+
+          const invitePanel = document.getElementById("dynamic-invite-panel");
+          if (data.allowed) {
+            log("Verificación Keto: USUARIO ES ADMIN.");
+            invitePanel.innerHTML = `
+              <h3>Generar Invitación B2B</h3>
+              <div class="field">
+                <label>EMPRESA ORIGEN</label>
+                <input type="text" id="invite-company" value="empresa-pry-root" readonly />
+              </div>
+              <div class="field">
+                <label>ROL DEL INVITADO</label>
+                <select id="invite-role">
+                  <option value="ventas">Vendedor (Ventas)</option>
+                  <option value="member">Miembro Regular</option>
+                  <option value="admin">Administrador Secundario</option>
+                </select>
+              </div>
+              <button class="action-btn" onclick="generateInvite()">🔗 GENERAR LINK DE UN SOLO USO</button>
+              <div id="invite-result" style="margin-top:15px; font-size: 0.75rem; word-break: break-all; display:none; border-left: 3px solid var(--warn); padding-left: 10px;"></div>
+            `;
+          } else {
+            log("Verificación Keto: Acceso denegado (No es Admin).");
+            invitePanel.innerHTML = `
+              <h3>Generar Invitación B2B</h3>
+              <div class="msg-box msg-err" style="display:block;">
+                🔒 Acceso Denegado: Solo los administradores de la empresa pueden generar enlaces de invitación.
+              </div>
+            `;
+          }
+        } catch (e) {
+          log("Error verificando permisos en Keto: " + e);
+          document.getElementById("dynamic-invite-panel").innerHTML =
+            `<div class="msg-box msg-err" style="display:block;">Error de red al consultar políticas.</div>`;
+        }
+      }
+
+      function generateInvite() {
+        const role = document.getElementById("invite-role").value;
+        const company = document.getElementById("invite-company").value;
+        const fakeHash = "inv-" + role.substring(0, 3) + "-" + rnd(12);
+        const link = `https://api.ztest.click/protected-zone/registration?invite=${fakeHash}`;
+
+        const res = document.getElementById("invite-result");
+        res.style.display = "block";
+        res.innerHTML = `
+            <span style="color:#fff;">Link generado exitosamente:</span><br><br>
+            <a href="${link}" style="color:var(--accent); font-weight:bold;">${link}</a><br><br>
+            <span style="color:#888;">Guarda este hash para la Demo BD: <b>${fakeHash}</b></span>
+          `;
+        log("Hash para Inserción: " + fakeHash);
+      }
+
+      async function handleAutoConsent(challenge) {
+        switchView("view-loading");
+        document.getElementById("loading-msg").innerText = "AUTORIZANDO...";
+        try {
+          const infoRes = await fetch(
+            `${CFG.hydraAdmin}/oauth2/auth/requests/consent?consent_challenge=${challenge}`,
+            { credentials: "include" },
+          );
+          if (!infoRes.ok) throw new Error(`HTTP ${infoRes.status}`);
+          const info = await infoRes.json();
+          const acceptRes = await fetch(
+            `${CFG.hydraAdmin}/oauth2/auth/requests/consent/accept?consent_challenge=${challenge}`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                grant_scope: info.requested_scope,
+                grant_access_token_audience:
+                  info.requested_access_token_audience,
+                remember: true,
+                remember_for: 3600,
+              }),
+              credentials: "include",
+            },
+          );
+          if (!acceptRes.ok) throw new Error(`HTTP ${acceptRes.status}`);
+          const acceptData = await acceptRes.json();
+          if (acceptData.redirect_to)
+            window.location.href = acceptData.redirect_to;
+        } catch (e) {
+          log("FATAL: " + e.message);
+          renderMsg(
+            [{ type: "error", text: `Error: ${e.message}` }],
+            "dash-msg",
+          );
+          switchView("view-dashboard");
+        }
+      }
+
+      async function initFlowRedirect(type) {
+        switchView("view-loading");
+        window.location.href = `${CFG.kratos}/self-service/${type}/browser`;
+      }
+
+      async function loadKratosUI(type, flowId) {
+        switchView("view-kratos");
+        document.getElementById("flow-title").innerText = type.toUpperCase();
+        try {
+          const res = await fetch(
+            `${CFG.kratos}/self-service/${type}/flows?id=${flowId}`,
+            {
+              credentials: "include",
+              headers: { Accept: "application/json" },
+            },
+          );
+          if ([403, 404, 410].includes(res.status))
+            return initFlowRedirect(type);
+          const data = await res.json();
+          renderForm(data.ui);
+        } catch (e) {
+          log("Error UI: " + e.message);
+        }
+      }
+
+      function renderForm(ui) {
+        const form = document.getElementById("kratos-form");
+        form.innerHTML = "";
+        form.setAttribute("action", ui.action);
+        form.setAttribute("method", ui.method);
+        if (ui.messages) renderMsg(ui.messages, "kratos-msg");
+
+        ui.nodes.forEach((node) => {
+          const attr = node.attributes;
+          if (attr.type === "hidden") {
+            form.insertAdjacentHTML(
+              "beforeend",
+              `<input type="hidden" name="${attr.name}" value="${attr.value || ""}">`,
+            );
+            return;
+          }
+
+          const group = document.createElement("div");
+          group.className = "field";
+
+          // Ocultar completamente el campo invite_token del usuario final
+          if (attr.name === "traits.invite_token") {
+            group.style.display = "none";
+          }
+
+          if (node.meta.label || attr.name) {
+            const l = document.createElement("label");
+            let labelText = node.meta.label?.text;
+            if (!labelText || labelText === attr.name)
+              labelText = LABEL_MAP[attr.name] || attr.name.toUpperCase();
+            l.innerText = labelText;
+            if (node.messages.length > 0) l.style.color = "var(--err)";
+            group.appendChild(l);
+          }
+          if (attr.type === "submit") {
+            const b = document.createElement("button");
+            b.type = "submit";
+            b.name = attr.name;
+            b.value = attr.value;
+            b.innerText = node.meta.label?.text || "CONTINUAR";
+            b.onclick = () =>
+              (form.dataset.submitter = JSON.stringify({
+                name: attr.name,
+                value: attr.value,
+              }));
+            group.appendChild(b);
+          } else {
+            const i = document.createElement("input");
+            i.name = attr.name;
+            i.type = attr.type;
+            i.value = attr.value || "";
+
+            if (
+              attr.name === "traits.invite_token" &&
+              sessionStorage.getItem("pending_invite")
+            ) {
+              i.value = sessionStorage.getItem("pending_invite");
+            }
+
+            if (attr.disabled) i.disabled = true;
+            if (node.messages.length > 0) i.style.borderColor = "var(--err)";
+            group.appendChild(i);
+          }
+          form.appendChild(group);
+        });
+      }
+
+      async function submitKratos(e) {
+        e.preventDefault();
+        const form = e.target;
+        const btns = form.querySelectorAll("button");
+        btns.forEach((b) => {
+          b.disabled = true;
+          b.innerText = "Procesando...";
+        });
+        const body = Object.fromEntries(new FormData(form));
+        if (form.dataset.submitter) {
+          const s = JSON.parse(form.dataset.submitter);
+          body[s.name] = s.value;
+        }
+
+        try {
+          const res = await fetch(form.getAttribute("action"), {
+            method: form.getAttribute("method"),
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(body),
+            credentials: "include",
+          });
+          const data = await res.json();
+
+          if (res.status === 422 && data.redirect_browser_to) {
+            window.location.href = data.redirect_browser_to;
+          } else if (data.redirect_to) {
+            window.location.href = data.redirect_to;
+          } else if (data.session) {
+            log("Sesión Kratos Confirmada.");
+            startLogin();
+          } else if (data.identity) {
+            log("Registro Exitoso.");
+            sessionStorage.removeItem("pending_invite");
+            window.location.href = "/protected-zone/login";
+          } else if (data.ui) {
+            if (data.session)
+              renderMsg(
+                [{ type: "success", text: "Datos Actualizados" }],
+                "kratos-msg",
+              );
+            renderForm(data.ui);
+          } else {
+            renderMsg(
+              [{ type: "error", text: "Error: " + JSON.stringify(data) }],
+              "kratos-msg",
+            );
+          }
+        } catch (err) {
+          renderMsg(
+            [{ type: "error", text: "Error: " + err.message }],
+            "kratos-msg",
+          );
+        } finally {
+          btns.forEach((b) => {
+            b.disabled = false;
+            b.innerText = "CONTINUAR";
+          });
+        }
+      }
+
+      async function startLogin() {
+        const state = rnd(32);
+        const verifier = rnd(64);
+        const challenge = await sha256(verifier);
+        sessionStorage.setItem("verifier", verifier);
+        localStorage.setItem("verifier_backup", verifier);
+        const p = new URLSearchParams({
+          response_type: "code",
+          client_id: CFG.clientId,
+          state: state,
+          scope: "openid offline",
+          redirect_uri: CFG.base,
+          code_challenge: challenge,
+          code_challenge_method: "S256",
+        });
+        window.location.href = `${CFG.hydra}/auth?${p}`;
+      }
+
+      async function handleOidcCallback() {
+        switchView("view-loading");
+        document.getElementById("loading-msg").innerText = "Verificando...";
+        window.history.replaceState({}, "", CFG.base);
+
+        let verifier =
+          sessionStorage.getItem("verifier") ||
+          localStorage.getItem("verifier_backup");
+        if (!verifier) {
+          log("Verifier perdido. Reiniciando...");
+          setTimeout(startLogin, 500);
+          return;
+        }
+
+        try {
+          const res = await fetch(`${CFG.hydra}/token`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              grant_type: "authorization_code",
+              client_id: CFG.clientId,
+              code: q.get("code"),
+              redirect_uri: CFG.base,
+              code_verifier: verifier,
+            }),
+          });
+          const data = await res.json();
+          if (data.access_token) {
+            sessionStorage.setItem("at", data.access_token);
+            sessionStorage.removeItem("verifier");
+            localStorage.removeItem("verifier_backup");
+            renderUser(data.access_token);
+          } else {
+            if (data.error === "invalid_grant") setTimeout(startLogin, 1000);
+            else {
+              renderMsg(
+                [{ type: "error", text: "Error de Acceso." }],
+                "dash-msg",
+              );
+              renderAnon();
+            }
+          }
+        } catch (e) {
+          renderMsg([{ type: "error", text: e.message }], "dash-msg");
+          renderAnon();
+        }
+      }
+
+      function switchView(viewId) {
+        ["view-dashboard", "view-kratos", "view-loading"].forEach((id) =>
+          document.getElementById(id).classList.add("hidden"),
+        );
+        document.getElementById(viewId).classList.remove("hidden");
+      }
+
+      function renderUser(token) {
+        switchView("view-dashboard");
+        document.getElementById("main-actions").classList.add("hidden");
+        document.getElementById("user-actions").classList.remove("hidden");
+        const btn = document.getElementById("btn-secure");
+        btn.disabled = false;
+        btn.innerText = "🛡️ EJECUTAR TEST DE SEGURIDAD";
+        btn.style.background = "var(--success)";
+        btn.style.color = "#000";
+        updateIdentity();
+      }
+
+      function renderAnon() {
+        switchView("view-dashboard");
+        document.getElementById("main-actions").classList.remove("hidden");
+        document.getElementById("user-actions").classList.add("hidden");
+      }
+
+      async function testSecureApi() {
+        const res = document.getElementById("api-result");
+        res.innerHTML = "Verificando...";
+        try {
+          const r = await fetch(
+            "https://api.ztest.click/protected-zone/api/test",
+            {
+              headers: {
+                Authorization: "Bearer " + sessionStorage.getItem("at"),
+              },
+            },
+          );
+          res.innerHTML =
+            r.ok || r.status === 404
+              ? `<span style="color:var(--success)">✔ ACCESO CONFIRMADO (200 OK)</span>`
+              : `<span style="color:var(--err)">✖ DENEGADO (${r.status})</span>`;
+        } catch (e) {
+          res.innerText = e.message;
+        }
+      }
+
+      function renderMsg(msgs, id) {
+        const b = document.getElementById(id);
+        b.innerHTML = msgs.map((m) => m.text).join("<br>");
+        b.style.display = "block";
+        b.className =
+          "msg-box " +
+          (msgs[0].type === "error"
+            ? "msg-err"
+            : msgs[0].type === "success"
+              ? "msg-success"
+              : "msg-info");
+      }
+
+      function cancelFlow() {
+        window.location.href = CFG.base;
+      }
+
+      async function hardLogout() {
+        sessionStorage.clear();
+        localStorage.clear();
+        try {
+          const d = await (
+            await fetch(`${CFG.kratos}/self-service/logout/browser`, {
+              headers: { Accept: "application/json" },
+              credentials: "include",
+            })
+          ).json();
+          if (d.logout_url) window.location.href = d.logout_url;
+          else window.location.reload();
+        } catch (e) {
+          window.location.reload();
+        }
+      }
+
+      function toggleLog() {
+        const l = document.getElementById("debug-console");
+        l.style.display = l.style.display === "block" ? "none" : "block";
+      }
+
+      function log(m) {
+        document.getElementById("debug-console").innerText += "\n> " + m;
+      }
+
+      function rnd(l) {
+        const v = new Uint32Array(l);
+        window.crypto.getRandomValues(v);
+        return [...v]
+          .map((i) => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef0123456789"[i % 62])
+          .join("");
+      }
+
+      async function sha256(p) {
+        const e = new TextEncoder().encode(p);
+        const h = await crypto.subtle.digest("SHA-256", e);
+        return btoa(String.fromCharCode(...new Uint8Array(h)))
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+      }
+
+      init();
+    </script>
+  </body>
+</html>

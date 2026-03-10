@@ -1,0 +1,116 @@
+version: v1.2.0
+
+log:
+  level: info
+  format: json
+
+serve:
+  public:
+    base_url: https://api.ztest.click/
+    cors:
+      enabled: true
+      allowed_origins:
+        - https://api.ztest.click
+        - https://ztest.click
+  admin:
+    base_url: http://dns-kratos.pry.internal:4434
+
+identity:
+  schemas:
+    - id: default
+      url: file:///etc/config/identity.schema.json
+
+selfservice:
+  default_browser_return_url: http://dummy.internal/return
+  allowed_return_urls:
+    - http://dummy.internal
+    - https://api.ztest.click
+
+  methods:
+    password:
+      enabled: true
+    link:
+      enabled: true
+    code:
+      enabled: true
+
+  flows:
+    registration:
+      enabled: true
+      ui_url: http://dummy.internal/registration
+      after:
+        hooks:
+          - hook: web_hook
+            config:
+              url: http://dns-notifications.pry.internal:8080/events
+              method: POST
+              can_interrupt: false
+              body: file:///etc/config/hooks/registration.jsonnet
+              response:
+                ignore: true
+
+    verification:
+      enabled: true
+      use: code
+      ui_url: http://dummy.internal/verification
+      after:
+        hooks:
+          - hook: web_hook
+            config:
+              url: http://dns-notifications.pry.internal:8080/events
+              method: POST
+              can_interrupt: false
+              body: file:///etc/config/hooks/verification.jsonnet
+              response:
+                ignore: true
+
+    recovery:
+      enabled: true
+      use: code
+      ui_url: http://dummy.internal/recovery
+      after:
+        hooks:
+          - hook: web_hook
+            config:
+              url: http://dns-notifications.pry.internal:8080/events
+              method: POST
+              can_interrupt: false
+              body: file:///etc/config/hooks/recovery.jsonnet
+              response:
+                ignore: true
+
+    settings:
+      ui_url: http://dummy.internal/settings
+      privileged_session_max_age: 15m
+      after:
+        hooks:
+          - hook: web_hook
+            config:
+              url: http://dns-notifications.pry.internal:8080/events
+              method: POST
+              can_interrupt: false
+              body: file:///etc/config/hooks/settings.jsonnet
+              response:
+                ignore: true
+
+    login:
+      ui_url: http://dummy.internal/login
+
+hashers:
+  argon2:
+    parallelism: 1
+    memory: "128MB"
+    iterations: 2
+    salt_length: 16
+    key_length: 32
+
+session:
+  lifespan: 1h
+  cookie:
+    domain: ztest.click
+    same_site: Lax
+
+courier:
+  smtp:
+    connection_uri: smtp://localhost:1025/?skip_ssl_verify=true
+    from_address: no-reply@ztest.click

@@ -1,0 +1,71 @@
+ls /mnt/efs/kratos/hooks
+
+mkdir /mnt/efs/kratos/hooks
+
+cat <<'EOF' > /mnt/efs/kratos/hooks/registration.jsonnet
+function(ctx) {
+  specversion: "1.0",
+  type: "identity.registration.created",
+  source: "ory.kratos",
+  id: ctx.identity.id,
+  time: ctx.identity.created_at,
+  subject: "identity/" + ctx.identity.id,
+  data: {
+    identity_id: ctx.identity.id
+  },
+  trace: {
+    request_id: if std.objectHas(ctx, "request") && std.objectHas(ctx.request.headers, "X-Request-Id") then ctx.request.headers["X-Request-Id"][0] else "N/A"
+  }
+}
+EOF
+
+cat <<'EOF' > /mnt/efs/kratos/hooks/verification.jsonnet
+function(ctx) {
+  specversion: "1.0",
+  type: "identity.verification.requested",
+  source: "ory.kratos",
+  id: ctx.identity.id,
+  time: ctx.identity.updated_at,
+  subject: "identity/" + ctx.identity.id,
+  data: {
+    identity_id: ctx.identity.id
+  },
+  trace: {
+    request_id: "N/A"
+  }
+}
+EOF
+
+cat <<'EOF' > /mnt/efs/kratos/hooks/recovery.jsonnet
+function(ctx) {
+  specversion: "1.0",
+  type: "identity.recovery.requested",
+  source: "ory.kratos",
+  id: ctx.identity.id,
+  time: ctx.identity.updated_at,
+  subject: "identity/" + ctx.identity.id,
+  data: {
+    identity_id: ctx.identity.id
+  },
+  trace: {
+    request_id: "N/A"
+  }
+}
+EOF
+
+cat <<'EOF' > /mnt/efs/kratos/hooks/settings.jsonnet
+function(ctx) {
+  specversion: "1.0",
+  type: "identity.settings.updated",
+  source: "ory.kratos",
+  id: ctx.identity.id,
+  time: ctx.identity.updated_at,
+  subject: "identity/" + ctx.identity.id,
+  data: {
+    identity_id: ctx.identity.id
+  },
+  trace: {
+    request_id: "N/A"
+  }
+}
+EOF

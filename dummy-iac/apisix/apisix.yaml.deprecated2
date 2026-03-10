@@ -1,0 +1,20 @@
+routes:
+  - id: health
+    uris:
+      - /health
+    plugins:
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - |
+            return 200, { message = "ok" }
+
+  - id: root-test
+    uris:
+      - /
+    upstream:
+      type: roundrobin
+      nodes:
+        "httpbin.org:80": 1
+
+end: true

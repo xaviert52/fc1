@@ -1,0 +1,58 @@
+{
+  "$id": "https://schemas.pry.internal/identity.default.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Person",
+  "type": "object",
+  "properties": {
+    "traits": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "title": "E-Mail *",
+          "ory.sh/kratos": {
+            "credentials": { "password": { "identifier": true } },
+            "recovery": { "via": "email" }
+          }
+        },
+        "telefono": {
+          "type": "string",
+          "title": "Teléfono (WhatsApp) *",
+          "description": "Ej: +593..."
+        },
+        "name": {
+          "type": "object",
+          "properties": {
+            "first": { "type": "string", "title": "Nombres *" },
+            "last": { "type": "string", "title": "Apellidos *" }
+          },
+          "required": ["first", "last"]
+        },
+        "dni": {
+          "type": "string",
+          "title": "DNI *"
+        },
+        "dactilar": { "type": "string", "title": "Código Dactilar (Opcional)" },
+        "rostro": { "type": "string", "title": "Rostro (Opcional)" },
+        "companies": { "type": "array" },
+        "active_context": { "type": "object" },
+        "invite_token": {
+          "type": "string",
+          "title": "Token de Invitación (Automático)"
+        }
+      },
+      "required": [
+        "email",
+        "telefono",
+        "name",
+        "dni"
+      ],
+      "additionalProperties": false
+    },
+    "metadata_admin": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}
