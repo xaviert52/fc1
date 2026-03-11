@@ -7,33 +7,36 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-
-	"github.com/gin-gonic/gin"
+	"strings"
 )
 
-// InviteRequest es lo que nos envía el Backend Intermedio
 type InviteRequest struct {
-	InviterID string `json:"inviter_id" binding:"required"`
-	Email     string `json:"email" binding:"required"`
-	CompanyID string `json:"company_id" binding:"required"`
-	FirstName string `json:"first_name" binding:"required"`
-	LastName  string `json:"last_name" binding:"required"`
-	Telefono  string `json:"telefono" binding:"required"`
-	DNI       string `json:"dni" binding:"required"`
+	InviterID string `json:"inviter_id"`
+	Email     string `json:"email"`
+	CompanyID string `json:"company_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Telefono  string `json:"telefono"`
+	DNI       string `json:"dni"`
 }
 
-// HandleCreateInvite crea la identidad, la relación en Keto y devuelve el link
-func handleCreateInvite(c *gin.Context) {
+// handleCreateInvite procesa la creación en Kratos y Keto
+func handleCreateInvite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	var req InviteRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	kratosAdmin := os.Getenv("KRATOS_ADMIN_URL")
 	ketoWrite := os.Getenv("KETO_WRITE_URL")
 
-	// 1. Crear Identidad en Kratos (Admin API)
+	// 1. Crear Identidad en Kratos
 	identityPayload := map[string]interface{}{
 		"schema_id": "default",
 		"traits": map[string]interface{}{
@@ -47,7 +50,7 @@ func handleCreateInvite(c *gin.Context) {
 	identityBody, _ := json.Marshal(identityPayload)
 	resp, err := http.Post(kratosAdmin+"/admin/identities", "application/json", bytes.NewBuffer(identityBody))
 	if err != nil || resp.StatusCode >= 300 {
-		c.JSON(500, gin.H{"error": "Falló creación en Kratos"})
+		http.Error(w, "Falló creación en Kratos", http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
@@ -64,12 +67,12 @@ func handleCreateInvite(c *gin.Context) {
 		"subject_id": req.InviterID,
 	}
 	ketoBody, _ := json.Marshal(ketoPayload)
-	reqKeto, _ := http.NewRequest("PUT", ketoWrite+"/admin/relation-tuples", bytes.NewBuffer(ketoBody))
+	reqKeto, _ := http.NewRequest(http.MethodPut, ketoWrite+"/admin/relation-tuples", bytes.NewBuffer(ketoBody))
 	reqKeto.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
-	client.Do(reqKeto) // Ejecutamos la inserción en Keto
+	client.Do(reqKeto)
 
-	// 3. Generar Link de Invitación/Recuperación (Para que el usuario setee su clave)
+	// 3. Generar Link de Invitación
 	recoveryPayload := map[string]string{"identity_id": newUserID}
 	recoveryBody, _ := json.Marshal(recoveryPayload)
 	recResp, _ := http.Post(kratosAdmin+"/admin/recovery/link", "application/json", bytes.NewBuffer(recoveryBody))
@@ -78,27 +81,44 @@ func handleCreateInvite(c *gin.Context) {
 	var recData map[string]interface{}
 	json.NewDecoder(recResp.Body).Decode(&recData)
 
-	c.JSON(200, gin.H{
-		"message":     "Usuario B2B creado y jerarquía enlazada exitosamente",
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":     "Usuario B2B creado exitosamente",
 		"new_user_id": newUserID,
-		"invite_link": recData["recovery_link"], // El Backend Intermedio envía este link por correo
+		"invite_link": recData["recovery_link"],
 	})
 }
 
-// HandleGetHierarchy devuelve el árbol de subordinados en cascada para auditoría
-func handleGetHierarchy(c *gin.Context) {
-	rootUserID := c.Param("user_id")
+// handleGetHierarchy devuelve la lista de subordinados
+func handleGetHierarchy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extraer userID de la URL manualmente (ej: /core/hierarchy?user_id=123)
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		// Intento de extraer del path si viene como /core/hierarchy/123
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) > 3 {
+			userID = parts[3]
+		} else {
+			http.Error(w, "user_id is required", http.StatusBadRequest)
+			return
+		}
+	}
+
 	ketoRead := os.Getenv("KETO_READ_URL")
+	subordinates := getSubordinatesRecursive(ketoRead, userID)
 
-	subordinates := getSubordinatesRecursive(ketoRead, rootUserID)
-
-	c.JSON(200, gin.H{
-		"hierarchy_root": rootUserID,
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"hierarchy_root": userID,
 		"subordinates":   subordinates,
 	})
 }
 
-// Función recursiva para buscar en cascada quién reporta a quién
 func getSubordinatesRecursive(ketoReadURL, managerID string) []string {
 	url := fmt.Sprintf("%s/relation-tuples?namespace=User&relation=manager&subject_id=%s", ketoReadURL, managerID)
 	resp, err := http.Get(url)
@@ -122,7 +142,6 @@ func getSubordinatesRecursive(ketoReadURL, managerID string) []string {
 		subID := tupleMap["object"].(string)
 		directSubordinates = append(directSubordinates, subID)
 
-		// Magia B2B2C: Buscar a los subordinados de los subordinados (Cascada)
 		nested := getSubordinatesRecursive(ketoReadURL, subID)
 		directSubordinates = append(directSubordinates, nested...)
 	}
