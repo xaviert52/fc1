@@ -9,15 +9,19 @@ import (
 func startServer() {
 	mux := http.NewServeMux()
 
-	// Registro de rutas existentes
+	// Rutas originales de notificaciones y autenticación
 	mux.HandleFunc("/events", handleEvents)
 	mux.HandleFunc("/api/v1/auth/verify", verifyAccess)
 
-	// ----- NUEVAS RUTAS CORE API (B2B2C POKA-YOKE) -----
-	mux.HandleFunc("/core/invites", handleCreateInvite)
+	// ----- NUEVAS RUTAS CORE API (B2B2C MAGIC LINKS POKA-YOKE) -----
 
-	// La ruta base. El handler se encargará de extraer el ID de la URL
-	// Ej: GET /core/hierarchy/UUID-AQUI o GET /core/hierarchy?user_id=UUID
+	// Paso 1: Generar link cifrado
+	mux.HandleFunc("/core/invites/generate", handleGenerateInvite)
+
+	// Paso 2: Consolidar tras registro
+	mux.HandleFunc("/core/invites/redeem", handleRedeemInvite)
+
+	// Auditoría: Árbol en cascada
 	mux.HandleFunc("/core/hierarchy/", handleGetHierarchy)
 
 	server := &http.Server{

@@ -2,104 +2,171 @@ package main
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
-type InviteRequest struct {
-	InviterID string `json:"inviter_id"`
-	Email     string `json:"email"`
-	CompanyID string `json:"company_id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Telefono  string `json:"telefono"`
-	DNI       string `json:"dni"`
+// Clave secreta para firmar los JWT. En producción, esto DEBE venir de os.Getenv("JWT_SECRET")
+var jwtSecret = []byte(getEnvOrDefault("JWT_SECRET", "super-secret-key-for-magic-links"))
+
+// --- Estructuras para los nuevos endpoints JWT ---
+
+type GenerateInviteRequest struct {
+	InviterID   string `json:"inviter_id"`
+	CompanyID   string `json:"company_id"`
+	Role        string `json:"role"`
+	TargetEmail string `json:"target_email"` // Opcional
 }
 
-// handleCreateInvite procesa la creación en Kratos y Keto
-func handleCreateInvite(w http.ResponseWriter, r *http.Request) {
+type RedeemInviteRequest struct {
+	NewUserID   string `json:"new_user_id"`
+	InviteToken string `json:"invite_token"`
+}
+
+type InviteClaims struct {
+	InviterID string `json:"inviter_id"`
+	CompanyID string `json:"company_id"`
+	Role      string `json:"role"`
+	Exp       int64  `json:"exp"`
+}
+
+func getEnvOrDefault(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
+
+// --- Paso 1: Generar el Magic Link (Sin estado) ---
+func handleGenerateInvite(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var req InviteRequest
+	var req GenerateInviteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
 		return
 	}
 
-	kratosAdmin := os.Getenv("KRATOS_ADMIN_URL")
-	ketoWrite := os.Getenv("KETO_WRITE_URL")
-
-	// 1. Crear Identidad en Kratos
-	identityPayload := map[string]interface{}{
-		"schema_id": "default",
-		"traits": map[string]interface{}{
-			"email":     req.Email,
-			"telefono":  req.Telefono,
-			"name":      map[string]string{"first": req.FirstName, "last": req.LastName},
-			"dni":       req.DNI,
-			"companies": []string{req.CompanyID},
-		},
+	// Crear el payload del JWT
+	claims := InviteClaims{
+		InviterID: req.InviterID,
+		CompanyID: req.CompanyID,
+		Role:      req.Role,
+		Exp:       time.Now().Add(72 * time.Hour).Unix(), // El link expira en 3 días
 	}
-	identityBody, _ := json.Marshal(identityPayload)
-	resp, err := http.Post(kratosAdmin+"/admin/identities", "application/json", bytes.NewBuffer(identityBody))
-	if err != nil || resp.StatusCode >= 300 {
-		http.Error(w, "Falló creación en Kratos", http.StatusInternalServerError)
+
+	// Serializar y codificar Header y Payload
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+	claimsJSON, _ := json.Marshal(claims)
+	payload := base64.RawURLEncoding.EncodeToString(claimsJSON)
+
+	// Firmar el token
+	signatureInput := header + "." + payload
+	h := hmac.New(sha256.New, jwtSecret)
+	h.Write([]byte(signatureInput))
+	signature := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+
+	jwtToken := signatureInput + "." + signature
+
+	// Devolver el link mágico.
+	inviteLink := fmt.Sprintf("https://%s/registro?invite_token=%s", getEnvOrDefault("DOMAIN", "front.primecore.online"), jwtToken)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":     "Magic link generado exitosamente",
+		"invite_link": inviteLink,
+	})
+}
+
+// --- Paso 2: Canjear el Token tras el registro ---
+func handleRedeemInvite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	defer resp.Body.Close()
 
-	var kratosRes map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&kratosRes)
-	newUserID := kratosRes["id"].(string)
+	var req RedeemInviteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		return
+	}
 
-	// 2. Crear Relación en Keto (newUserID reporta a InviterID)
+	// 1. Validar el JWT
+	parts := strings.Split(req.InviteToken, ".")
+	if len(parts) != 3 {
+		http.Error(w, "Token inválido", http.StatusBadRequest)
+		return
+	}
+
+	h := hmac.New(sha256.New, jwtSecret)
+	h.Write([]byte(parts[0] + "." + parts[1]))
+	expectedSignature := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+
+	if parts[2] != expectedSignature {
+		http.Error(w, "Token modificado o inválido", http.StatusUnauthorized)
+		return
+	}
+
+	claimsJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		http.Error(w, "Error decodificando token", http.StatusInternalServerError)
+		return
+	}
+
+	var claims InviteClaims
+	json.Unmarshal(claimsJSON, &claims)
+
+	if time.Now().Unix() > claims.Exp {
+		http.Error(w, "El token de invitación ha expirado", http.StatusUnauthorized)
+		return
+	}
+
+	// 2. Consolidar relación en Keto (Cascada)
+	ketoWrite := getEnvOrDefault("KETO_WRITE_URL", "http://keto:4467")
+
 	ketoPayload := map[string]string{
 		"namespace":  "User",
-		"object":     newUserID,
+		"object":     req.NewUserID,
 		"relation":   "manager",
-		"subject_id": req.InviterID,
+		"subject_id": claims.InviterID,
 	}
 	ketoBody, _ := json.Marshal(ketoPayload)
 	reqKeto, _ := http.NewRequest(http.MethodPut, ketoWrite+"/admin/relation-tuples", bytes.NewBuffer(ketoBody))
 	reqKeto.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
-	client.Do(reqKeto)
-
-	// 3. Generar Link de Invitación
-	recoveryPayload := map[string]string{"identity_id": newUserID}
-	recoveryBody, _ := json.Marshal(recoveryPayload)
-	recResp, _ := http.Post(kratosAdmin+"/admin/recovery/link", "application/json", bytes.NewBuffer(recoveryBody))
-	defer recResp.Body.Close()
-
-	var recData map[string]interface{}
-	json.NewDecoder(recResp.Body).Decode(&recData)
+	respKeto, err := client.Do(reqKeto)
+	if err != nil || respKeto.StatusCode >= 300 {
+		http.Error(w, "Falló la consolidación de jerarquía en Keto", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message":     "Usuario B2B creado exitosamente",
-		"new_user_id": newUserID,
-		"invite_link": recData["recovery_link"],
+		"message": "Jerarquía consolidada exitosamente",
+		"success": true,
 	})
 }
 
-// handleGetHierarchy devuelve la lista de subordinados
+// --- Auditoría en Cascada ---
 func handleGetHierarchy(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Extraer userID de la URL manualmente (ej: /core/hierarchy?user_id=123)
 	userID := r.URL.Query().Get("user_id")
 	if userID == "" {
-		// Intento de extraer del path si viene como /core/hierarchy/123
 		parts := strings.Split(r.URL.Path, "/")
 		if len(parts) > 3 {
 			userID = parts[3]
@@ -109,7 +176,7 @@ func handleGetHierarchy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ketoRead := os.Getenv("KETO_READ_URL")
+	ketoRead := getEnvOrDefault("KETO_READ_URL", "http://keto:4466")
 	subordinates := getSubordinatesRecursive(ketoRead, userID)
 
 	w.Header().Set("Content-Type", "application/json")
